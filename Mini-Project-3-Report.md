@@ -10,9 +10,8 @@
 
 * **Team Members:**
   1. Bui Dang Trung Kien — Student ID: 32IT.B102 — Role: Fullstack Mobile Developer — Contribution: 100%
-* **🔗 Live Demo URL:** `https://github.com/<username>/ocr_expense_tracker/releases` *(replace with the APK download link before submission)*
-* **💻 GitHub Repository:** `https://github.com/<username>/ocr_expense_tracker`
-* **🎥 Video Demo (Optional):** `https://youtu.be/xxx`
+* **💻 GitHub Repository:** `https://github.com/jusskynn97/ocr_expense_tracker`
+* **🎥 Video Demo (Optional):** `https://drive.google.com/drive/folders/1DmLJQg91T40fnzuiQOF4ShtW3nIMnxra?usp=sharing`
 * **📱 Platform target:** Android (primary, verified with `flutter build apk`), iOS configuration included
 * **🧱 Tech stack:** Flutter 3.44 / Dart 3.12, `camera`, `google_mlkit_text_recognition`, `sqflite`, `provider`, `image`, `intl`, `path_provider`
 * **📴 Network requirement:** none — the app declares no `INTERNET` permission; all recognition and storage is on-device
@@ -145,13 +144,13 @@ elements a marker should be able to confirm.
 | Fig. 4.3 | Review (after OCR) | Cropped receipt thumbnail with the confidence badge, plus prefilled amount / merchant / date / category and the amount-candidate chips |
 | Fig. 4.4 | Statistics | Animated category donut with its legend, weekly bar chart with a selected column, and the selected-day detail panel |
 
-![Fig. 4.1 — Dashboard](docs/screenshots/01-dashboard.png)
+![Fig. 4.1 — Dashboard](https://github.com/jusskynn97/ocr_expense_tracker/blob/main/01-dashboard.png)
 
-![Fig. 4.2 — Scanner with framing overlay](docs/screenshots/02-scanner.png)
+![Fig. 4.2 — Scanner with framing overlay](https://github.com/jusskynn97/ocr_expense_tracker/blob/main/02-scanner.png)
 
-![Fig. 4.3 — Review screen prefilled by OCR](docs/screenshots/03-review.png)
+![Fig. 4.3 — Review screen prefilled by OCR](https://github.com/jusskynn97/ocr_expense_tracker/blob/main/03-review.png)
 
-![Fig. 4.4 — Statistics with donut and weekly bar chart](docs/screenshots/04-stats.png)
+![Fig. 4.4 — Statistics with donut and weekly bar chart](https://github.com/jusskynn97/ocr_expense_tracker/blob/main/04-stats.png)
 
 **Reproduction steps for the marker**
 

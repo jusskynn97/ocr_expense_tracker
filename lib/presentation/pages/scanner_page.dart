@@ -18,7 +18,7 @@ class ScannerPage extends StatefulWidget {
 }
 
 class _ScannerPageState extends State<ScannerPage>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   static const NormalizedRect _cropFrame = NormalizedRect.receiptFrame;
 
   CameraController? _controller;
@@ -121,13 +121,18 @@ class _ScannerPageState extends State<ScannerPage>
   // Tương tác camera
   // ---------------------------------------------------------------------------
 
+  /// Vòng lặp: Tắt -> Tự động -> Bật (đèn sáng liên tục khi ngắm hoá đơn).
+  ///
+  /// Lưu ý quan trọng: trên Android (CameraX), `FlashMode.always` chỉ kích đèn
+  /// đúng lúc chụp nên người dùng không thấy đèn sáng. Muốn đèn LED sáng liên
+  /// tục để ngắm hoá đơn thì phải dùng `FlashMode.torch`.
   Future<void> _cycleFlash() async {
     final CameraController? controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
 
     final FlashMode next = switch (_flashMode) {
       FlashMode.off => FlashMode.auto,
-      FlashMode.auto => FlashMode.always,
+      FlashMode.auto => FlashMode.torch,
       _ => FlashMode.off,
     };
 
@@ -451,7 +456,11 @@ class _TopBar extends StatelessWidget {
               },
               active: flashMode != FlashMode.off,
               onTap: onFlashTap,
-              tooltip: 'Chế độ đèn',
+              tooltip: switch (flashMode) {
+                FlashMode.auto => 'Đèn: Tự động',
+                FlashMode.always || FlashMode.torch => 'Đèn: Bật',
+                _ => 'Đèn: Tắt',
+              },
             ),
           ),
         ],

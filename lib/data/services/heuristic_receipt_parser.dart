@@ -97,9 +97,12 @@ class HeuristicReceiptParser implements ReceiptParser {
     if (normalized.trim().isEmpty) return ParsedReceipt.empty;
 
     final List<String> lines = _splitLines(normalized);
-    final DateTime? date = _extractDate(lines);
-    final String? merchant = _extractMerchant(lines);
+    final _DatePick? datePick = _extractDates(lines);
+    final List<String> merchants = _extractMerchants(lines);
     final _AmountPick? pick = _extractTotal(lines);
+
+    final DateTime? date = datePick?.chosen;
+    final String? merchant = merchants.isEmpty ? null : merchants.first;
 
     double confidence = 0;
     if (pick != null) {
@@ -115,6 +118,8 @@ class HeuristicReceiptParser implements ReceiptParser {
       merchant: merchant,
       confidence: confidence.clamp(0, 1).toDouble(),
       amountCandidates: pick?.candidates ?? const <double>[],
+      dateCandidates: datePick?.candidates ?? const <DateTime>[],
+      merchantCandidates: merchants.take(4).toList(),
     );
   }
 
@@ -246,24 +251,37 @@ class HeuristicReceiptParser implements ReceiptParser {
   // Ngày
   // ---------------------------------------------------------------------------
 
-  DateTime? _extractDate(List<String> lines) {
-    DateTime? firstFound;
+  _DatePick? _extractDates(List<String> lines) {
+    final List<DateTime> ordered = <DateTime>[];
+    final Set<String> seen = <String>{};
     DateTime? keywordContext;
 
     for (final String line in lines) {
       final DateTime? parsed = _dateIn(line);
       if (parsed == null) continue;
-      firstFound ??= parsed;
+      final DateTime repaired = _repairFutureDate(parsed);
+      if (!seen.add(_dateTag(repaired))) continue;
+
+      ordered.add(repaired);
       final String flat = _deaccent(line);
-      if (_dateKeywords.any(flat.contains)) {
-        keywordContext ??= parsed;
+      if (keywordContext == null && _dateKeywords.any(flat.contains)) {
+        keywordContext = repaired;
       }
     }
 
-    final DateTime? chosen = keywordContext ?? firstFound;
-    if (chosen == null) return null;
-    return _repairFutureDate(chosen);
+    if (ordered.isEmpty) return null;
+
+    final DateTime chosen = keywordContext ?? ordered.first;
+    final List<DateTime> candidates = <DateTime>[
+      chosen,
+      ...ordered.where((DateTime value) => _dateTag(value) != _dateTag(chosen)),
+    ];
+
+    return _DatePick(chosen: chosen, candidates: candidates.take(4).toList());
   }
+
+  static String _dateTag(DateTime value) =>
+      '${value.year}-${value.month}-${value.day}';
 
   DateTime? _dateIn(String line) {
     final RegExpMatch? ymd = _ymd.firstMatch(line);
@@ -330,17 +348,22 @@ class HeuristicReceiptParser implements ReceiptParser {
   // Tên cửa hàng
   // ---------------------------------------------------------------------------
 
-  String? _extractMerchant(List<String> lines) {
+  /// Danh sách tên cửa hàng khả dĩ, ưu tiên các dòng đầu hoá đơn (nơi in tên quán).
+  List<String> _extractMerchants(List<String> lines) {
+    final List<String> ordered = <String>[];
     final int primaryLimit = math.min(lines.length, 6);
-    for (int index = 0; index < primaryLimit; index++) {
-      final String? candidate = _cleanMerchant(lines[index]);
-      if (candidate != null) return candidate;
+
+    void collect(int from, int to) {
+      for (int index = from; index < to; index++) {
+        final String? candidate = _cleanMerchant(lines[index]);
+        if (candidate == null || ordered.contains(candidate)) continue;
+        ordered.add(candidate);
+      }
     }
-    for (int index = primaryLimit; index < lines.length; index++) {
-      final String? candidate = _cleanMerchant(lines[index]);
-      if (candidate != null) return candidate;
-    }
-    return null;
+
+    collect(0, primaryLimit);
+    collect(primaryLimit, lines.length);
+    return ordered;
   }
 
   String? _cleanMerchant(String rawLine) {
@@ -435,4 +458,13 @@ class _AmountPick {
 
   /// True khi tìm được nhờ từ khoá "tổng ...", tin cậy hơn fallback theo mệnh giá.
   final bool keywordDriven;
+}
+
+class _DatePick {
+  const _DatePick({required this.chosen, required this.candidates});
+
+  final DateTime chosen;
+
+  /// Ngày được chọn đứng đầu, theo sau là các cách hiểu khác (tối đa 4).
+  final List<DateTime> candidates;
 }

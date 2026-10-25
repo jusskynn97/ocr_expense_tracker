@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Camera: quét hoá đơn. OCR chạy on-device nên không cần quyền Internet. -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Chỉ dùng để tải một lần model trợ lý AI on-device (LFM2.5-230M) về máy.
+         Sau khi tải xong, toàn bộ suy luận chạy offline. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>

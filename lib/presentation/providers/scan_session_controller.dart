@@ -5,6 +5,7 @@ import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/normalized_rect.dart';
 import '../../domain/entities/parsed_receipt.dart';
 import '../../domain/services/receipt_image_store.dart';
+import '../../domain/services/receipt_understander.dart';
 import '../../domain/usecases/create_expense.dart';
 import '../../domain/usecases/scan_receipt.dart';
 
@@ -19,13 +20,21 @@ class ScanSessionController extends ChangeNotifier {
     required ReceiptImageStore imageStore,
     required this.sourceImagePath,
     this.crop,
+    ReceiptUnderstander? understander,
   })  : _scanReceipt = scanReceipt,
         _createExpense = createExpense,
-        _imageStore = imageStore;
+        _imageStore = imageStore,
+        _understander = understander,
+        _assistantStatus = understander?.isReady ?? false
+            ? SlmStatus.ready
+            : SlmStatus.notInstalled;
 
   final ScanReceiptUseCase _scanReceipt;
   final CreateExpenseUseCase _createExpense;
   final ReceiptImageStore _imageStore;
+
+  /// Trợ lý AI on-device (có thể null nếu nền tảng không hỗ trợ).
+  final ReceiptUnderstander? _understander;
 
   final String sourceImagePath;
   final NormalizedRect? crop;
@@ -38,6 +47,10 @@ class ScanSessionController extends ChangeNotifier {
   bool _saved = false;
   bool _disposed = false;
 
+  SlmStatus _assistantStatus;
+  double _assistantProgress = 0;
+  bool _assistantRunning = false;
+
   ScanStage get stage => _stage;
   String? get receiptPath => _receiptPath;
   ParsedReceipt get parsed => _result.receipt;
@@ -45,6 +58,16 @@ class ScanSessionController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isSaving => _saving;
   bool get isBusy => _stage == ScanStage.cropping || _stage == ScanStage.recognizing;
+
+  /// Máy này có trợ lý AI on-device để tinh chỉnh kết quả hay không.
+  bool get hasAssistant => _understander != null;
+  SlmStatus get assistantStatus => _assistantStatus;
+  double get assistantProgress => _assistantProgress;
+  bool get isAssistantBusy =>
+      _assistantRunning ||
+      _assistantStatus == SlmStatus.downloading ||
+      _assistantStatus == SlmStatus.loading;
+  String? get assistantError => _understander?.lastError;
 
   /// Chạy toàn bộ pipeline on-device. An toàn khi gọi lại nhiều lần.
   Future<void> start() async {
@@ -68,6 +91,39 @@ class ScanSessionController extends ChangeNotifier {
       _errorMessage = '$error';
     }
     _safeNotify();
+  }
+
+  /// Tải/nạp model rồi nhờ nó đối chiếu lại kết quả regex đang có.
+  ///
+  /// Dùng chung cho cả lần bật đầu tiên và lần thử lại sau khi lỗi.
+  Future<void> enableAssistant() async {
+    final ReceiptUnderstander? understander = _understander;
+    if (understander == null || _assistantRunning) return;
+
+    _assistantRunning = true;
+    _assistantProgress = 0;
+    _safeNotify();
+
+    try {
+      await understander.prepare(
+        onProgress: (double progress) {
+          _assistantProgress = progress;
+          _assistantStatus = understander.status;
+          _safeNotify();
+        },
+      );
+
+      if (understander.isReady) {
+        _result = await _scanReceipt.refineOnly(_result);
+      }
+    } catch (error) {
+      _errorMessage = null;
+      debugPrint('Trợ lý AI on-device thất bại: $error');
+    } finally {
+      _assistantStatus = understander.status;
+      _assistantRunning = false;
+      _safeNotify();
+    }
   }
 
   /// Lưu chi tiêu đã được người dùng xác nhận/chỉnh sửa.

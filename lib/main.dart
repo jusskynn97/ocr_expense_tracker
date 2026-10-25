@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme/app_theme.dart';
@@ -6,9 +8,11 @@ import 'data/datasources/expense_local_data_source.dart';
 import 'data/repositories/expense_repository_impl.dart';
 import 'data/services/file_receipt_image_store.dart';
 import 'data/services/heuristic_receipt_parser.dart';
+import 'data/services/litert_receipt_understander.dart';
 import 'data/services/mlkit_text_recognizer_service.dart';
 import 'domain/repositories/expense_repository.dart';
 import 'domain/services/receipt_image_store.dart';
+import 'domain/services/receipt_understander.dart';
 import 'domain/usecases/create_expense.dart';
 import 'domain/usecases/delete_expense.dart';
 import 'domain/usecases/get_expenses.dart';
@@ -17,8 +21,20 @@ import 'domain/usecases/update_expense.dart';
 import 'presentation/pages/home_shell_page.dart';
 import 'presentation/providers/expense_provider.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Đăng ký engine LiteRT-LM để chạy trợ lý AI on-device. Nếu nền tảng không
+  // hỗ trợ (ví dụ thiết bị không phải arm64-v8a), app vẫn chạy bình thường với
+  // pipeline regex thuần - chỉ phần tinh chỉnh bằng model bị tắt.
+  try {
+    await FlutterEdgeAi.initialize(
+      inferenceEngines: const <InferenceEngineProvider>[LiteRtLmEngine()],
+    );
+  } catch (error) {
+    debugPrint('Không khởi tạo được engine AI on-device: $error');
+  }
+
   runApp(const ExpenseTrackerApp());
 }
 
@@ -38,6 +54,7 @@ class _ExpenseTrackerAppState extends State<ExpenseTrackerApp> {
   final ReceiptImageStore _imageStore = const FileReceiptImageStore();
   final MlkitTextRecognizerService _recognizer = MlkitTextRecognizerService();
   final HeuristicReceiptParser _parser = const HeuristicReceiptParser();
+  final LiteRtReceiptUnderstander _understander = LiteRtReceiptUnderstander();
 
   // --- Use cases ----------------------------------------------------------
   late final GetExpensesUseCase _getExpenses = GetExpensesUseCase(_repository);
@@ -48,7 +65,7 @@ class _ExpenseTrackerAppState extends State<ExpenseTrackerApp> {
   late final DeleteExpenseUseCase _deleteExpense =
       DeleteExpenseUseCase(_repository, _imageStore);
   late final ScanReceiptUseCase _scanReceipt =
-      ScanReceiptUseCase(_recognizer, _parser);
+      ScanReceiptUseCase(_recognizer, _parser, _understander);
 
   @override
   void dispose() {
@@ -64,6 +81,7 @@ class _ExpenseTrackerAppState extends State<ExpenseTrackerApp> {
         Provider<ReceiptImageStore>.value(value: _imageStore),
         Provider<CreateExpenseUseCase>.value(value: _createExpense),
         Provider<ScanReceiptUseCase>.value(value: _scanReceipt),
+        Provider<ReceiptUnderstander>.value(value: _understander),
         ChangeNotifierProvider<ExpenseProvider>(
           create: (_) => ExpenseProvider(
             getExpenses: _getExpenses,
